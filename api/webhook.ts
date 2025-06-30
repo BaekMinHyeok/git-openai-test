@@ -19,18 +19,6 @@ export default async function handler(req, res) {
     return res.status(405).send("Method Not Allowed");
   }
 
-  const event = req.headers["x-github-event"];
-  const deliveryId = req.headers["x-github-delivery"];
-
-  console.log(`GitHub event received: ${event}`);
-  console.log(`Delivery ID: ${deliveryId}`);
-  console.log("Payload:", req.body);
-
-  // PR이 열렸을 때만 로그 찍기
-  if (event === "pull_request" && req.body.action === "opened") {
-    console.log("New PR opened:", req.body.pull_request.html_url);
-  }
-
   // 예외 처리: body가 없거나 구조가 이상할 경우
   if (!req.body || !req.body.action || !req.body.pull_request) {
     return res.status(400).send("Invalid GitHub webhook payload");
