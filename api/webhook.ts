@@ -1,30 +1,45 @@
-// Vercel API 라우트에서 POST 요청으로 GitHub webhook 받기
-export const config = { api: { bodyParser: true } };
+import fetch from "node-fetch";
+
+export const config = {
+  api: {
+    bodyParser: true, // JSON 파싱 허용
+  },
+};
+
+type OpenAIChatResponse = {
+  choices: {
+    message: {
+      content: string;
+    };
+  }[];
+};
 
 export default async function handler(req, res) {
-  // GitHub에서 보내는 이벤트 정보
+  if (req.method !== "POST") {
+    return res.status(405).send("Method Not Allowed");
+  }
+
+  // 예외 처리: body가 없거나 구조가 이상할 경우
+  if (!req.body || !req.body.action || !req.body.pull_request) {
+    return res.status(400).send("Invalid GitHub webhook payload");
+  }
+
   const { action, pull_request } = req.body;
 
-  // PR이 새로 열릴 때만 처리 (opened 이벤트)
   if (action !== "opened") {
-    return res.status(200).send("Event is not a new PR, ignored.");
+    return res.status(200).send("Not a new PR");
   }
 
   try {
-    // PR의 diff 정보 가져오기 (텍스트)
-    const diffResponse = await fetch(pull_request.diff_url);
-    const diff = await diffResponse.text();
+    const diff = await fetch(pull_request.diff_url).then((res) => res.text());
 
-    // GPT에 보낼 프롬프트 작성
     const prompt = `
-You are an expert code reviewer.
-Review this GitHub Pull Request diff and point out bugs, improvements, and best practices.
+You are an expert code reviewer. Review the following GitHub Pull Request diff and provide suggestions, improvements, or potential issues.
 
 Git Diff:
 ${diff}
-`;
+    `;
 
-    // OpenAI GPT API 호출
     const gptResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -37,22 +52,21 @@ ${diff}
       }),
     });
 
-    const gptData = await gptResponse.json();
-    const reviewComment = gptData.choices?.[0]?.message?.content || "No review generated.";
+    const gptData = (await gptResponse.json()) as OpenAIChatResponse;
+    const comment = gptData.choices?.[0]?.message?.content || "No review generated.";
 
-    // GitHub PR에 댓글 작성
     await fetch(pull_request.comments_url, {
       method: "POST",
       headers: {
         Authorization: `token ${process.env.GITHUB_TOKEN}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ body: reviewComment }),
+      body: JSON.stringify({ body: comment }),
     });
 
     return res.status(200).json({ status: "Review posted successfully" });
   } catch (error) {
-    console.error("Error handling webhook:", error);
+    console.error("Webhook Error:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
