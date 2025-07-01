@@ -11,13 +11,17 @@ export async function postComment({
 }) {
   const token = process.env.GITHUB_TOKEN;
 
-  await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/comments`, {
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}/comments`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      "User-Agent": "ai-review-bot"
+      "User-Agent": "ai-review-bot",
     },
     body: JSON.stringify({ body }),
   });
+
+  if (!res.ok) {
+    throw new Error(`Failed to post comment: ${res.status} ${await res.text()}`);
+  }
 }

@@ -47,6 +47,7 @@ export default async function handler(req, res) {
 
     const prompt = `
 You are an expert code reviewer. Review the following GitHub Pull Request diff and provide suggestions, improvements, or potential issues.
+If there is nothing to comment, please write "Looks good to me." instead of leaving blank.
 
 Git Diff:
 ${diff}
@@ -73,6 +74,8 @@ ${diff}
       issue_number: pull_request.number,
       body: comment,
     });
+console.log("Posting comment to PR:", pull_request.number);
+console.log("Comment content preview:", comment.slice(0, 200));
 
     return res.status(200).json({ status: "Review posted successfully" });
   } catch (error) {
