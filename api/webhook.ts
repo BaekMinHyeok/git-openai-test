@@ -1,4 +1,3 @@
-import fetch from "node-fetch";
 
 export const config = {
   api: {
@@ -38,7 +37,7 @@ export default async function handler(req, res) {
 
   const { action, pull_request } = req.body;
 
-  if (action !== "opened") {
+  if (event !== "pull_request" || action !== "opened") {
     return res.status(200).send("Not a new PR");
   }
 
