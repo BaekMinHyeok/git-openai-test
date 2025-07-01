@@ -1,3 +1,4 @@
+import { postComment } from "../helpers/github";
 
 export const config = {
   api: {
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
     return res.status(400).send("Invalid GitHub webhook payload");
   }
 
-  const { action, pull_request } = req.body;
+  const { action, pull_request, repository } = req.body;
 
   if (event !== "pull_request" || action !== "opened") {
     return res.status(200).send("Not a new PR");
@@ -66,13 +67,11 @@ ${diff}
     const gptData = (await gptResponse.json()) as OpenAIChatResponse;
     const comment = gptData.choices?.[0]?.message?.content || "No review generated.";
 
-    await fetch(pull_request.comments_url, {
-      method: "POST",
-      headers: {
-        Authorization: `token ${process.env.GITHUB_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ body: comment }),
+    await postComment({
+      owner: repository.owner.login,
+      repo: repository.name,
+      issue_number: pull_request.number,
+      body: comment,
     });
 
     return res.status(200).json({ status: "Review posted successfully" });
