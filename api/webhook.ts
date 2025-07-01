@@ -46,12 +46,11 @@ export default async function handler(req, res) {
     const diff = await fetch(pull_request.diff_url).then((res) => res.text());
 
     const prompt = `
-You are an expert code reviewer. Review the following GitHub Pull Request diff and provide suggestions, improvements, or potential issues.
-If there is nothing to comment, please write "Looks good to me." instead of leaving blank.
-
+You are a strict and helpful code reviewer. Please provide at least one suggestion, improvement, or point of attention for the following GitHub Pull Request diff.  
+If there is nothing wrong, write "Looks good to me."  
 Git Diff:
 ${diff}
-    `;
+`;
 
     const gptResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
