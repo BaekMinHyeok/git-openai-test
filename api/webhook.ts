@@ -1,4 +1,4 @@
-import fetch from "node-fetch";
+import { postComment } from "../helpers/github";
 
 export const config = {
   api: {
@@ -19,14 +19,26 @@ export default async function handler(req, res) {
     return res.status(405).send("Method Not Allowed");
   }
 
+  const event = req.headers["x-github-event"];
+  const deliveryId = req.headers["x-github-delivery"];
+
+  console.log(`GitHub event received: ${event}`);
+  console.log(`Delivery ID: ${deliveryId}`);
+  console.log("Payload:", req.body);
+
+  // PR이 열렸을 때만 로그 찍기
+  if (event === "pull_request" && req.body.action === "opened") {
+    console.log("New PR opened:", req.body.pull_request.html_url);
+  }
+
   // 예외 처리: body가 없거나 구조가 이상할 경우
   if (!req.body || !req.body.action || !req.body.pull_request) {
     return res.status(400).send("Invalid GitHub webhook payload");
   }
 
-  const { action, pull_request } = req.body;
+  const { action, pull_request, repository } = req.body;
 
-  if (action !== "opened") {
+  if (event !== "pull_request" || action !== "opened") {
     return res.status(200).send("Not a new PR");
   }
 
@@ -34,11 +46,18 @@ export default async function handler(req, res) {
     const diff = await fetch(pull_request.diff_url).then((res) => res.text());
 
     const prompt = `
-You are an expert code reviewer. Review the following GitHub Pull Request diff and provide suggestions, improvements, or potential issues.
+You are a highly experienced code reviewer.
+
+Carefully review the following GitHub Pull Request diff.
+
+Provide detailed feedback, suggestions, improvements, or point out potential problems.
+
+If there is nothing to improve, write "Looks good to me." to confirm that the code is fine.
 
 Git Diff:
 ${diff}
-    `;
+`;
+
 
     const gptResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -55,14 +74,14 @@ ${diff}
     const gptData = (await gptResponse.json()) as OpenAIChatResponse;
     const comment = gptData.choices?.[0]?.message?.content || "No review generated.";
 
-    await fetch(pull_request.comments_url, {
-      method: "POST",
-      headers: {
-        Authorization: `token ${process.env.GITHUB_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ body: comment }),
+    await postComment({
+      owner: repository.owner.login,
+      repo: repository.name,
+      issue_number: pull_request.number,
+      body: comment,
     });
+console.log("Posting comment to PR:", pull_request.number);
+console.log("Comment content preview:", comment.slice(0, 200));
 
     return res.status(200).json({ status: "Review posted successfully" });
   } catch (error) {
